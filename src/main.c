@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // 1. need to receive input continously - for now, this will be only be able to take in a line of commands 
 // 2. take in the argument and parse it
@@ -14,6 +15,7 @@
 void run_program();
 void parse_input();
 int parse_line();
+void execute_command(char *stdin_input);
 
 int main() {
 	run_program();
@@ -38,33 +40,54 @@ void parse_input() {
 }
 
 int parse_line() {
-	
-	int ch;
 
-	char *stdin_string = ( char* )malloc( 1024 *sizeof( char ) );
+	int BUFFER_SIZE = 1024;
+	int ch;
+	char *stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
 	int count_length_string = 0;
+
+	if (stdin_string == NULL) {
+		printf("%s\n", "Memory allocation error, please restart the program!");
+		free(stdin_string);
+		return 0;
+	}
 
 	printf("\n>");
 	
 	while ((ch = getchar()) != EOF) {
+		if (count_length_string >= BUFFER_SIZE) {
+			BUFFER_SIZE = BUFFER_SIZE * 2;
+			char *stdin_string_copy = (char*) realloc(stdin_string, BUFFER_SIZE * sizeof( char ) );
+			if (stdin_string_copy == NULL) {
+				printf("%s\n", "Memory allocation error, please restart the program!");
+				free(stdin_string_copy);
+				free(stdin_string);
+				return 0;
+			}
+			
+			stdin_string = stdin_string_copy;	
+		} 
+
+
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-			printf("%s", stdin_string);
+			execute_command(stdin_string);
 			free(stdin_string);
 			count_length_string = 0;
-			break;
-		} 
-		else {
-			stdin_string[count_length_string] = ch;	
-			count_length_string++;
+			return 1;
 		}
+ 
+		stdin_string[count_length_string] = ch;	
+		count_length_string++;
 	}
 
-	if (ch == EOF) {
-		return 0;
-	} else {
-		return 1;
-	}
+	free(stdin_string);
+	return 0;
 
 }
+
+void execute_command(char *stdin_input) {
+	printf("%s\n", stdin_input);
+}
+
 	
