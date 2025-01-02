@@ -14,8 +14,8 @@
 
 void run_program();
 void parse_input();
-int parse_line();
-void execute_command(char *stdin_input);
+int fetch_line();
+void parse_line(char *stdin_input);
 
 int main() {
 	run_program();
@@ -34,12 +34,12 @@ void parse_input() {
 	int status = 1;
 
 	while (status) {
-		status = parse_line();
+		status = fetch_line();
 	}
 
 }
 
-int parse_line() {
+int fetch_line() {
 
 	int BUFFER_SIZE = 1024;
 	int ch;
@@ -71,7 +71,7 @@ int parse_line() {
 
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-			execute_command(stdin_string);
+			parse_line(stdin_string);
 			free(stdin_string);
 			count_length_string = 0;
 			return 1;
@@ -86,8 +86,34 @@ int parse_line() {
 
 }
 
-void execute_command(char *stdin_input) {
-	printf("%s\n", stdin_input);
+void parse_line(char *stdin_input) {
+	int COMMAND_SIZE = 20; 
+	char **command_arr = malloc(COMMAND_SIZE * sizeof(char*));
+	char *argument;
+	int argument_index = 0;
+	argument = strtok(stdin_input, " ");
+
+	while (argument != NULL) {
+		if (argument_index >= COMMAND_SIZE) {
+			COMMAND_SIZE = COMMAND_SIZE * 2;
+			char** command_arr_copy = realloc(command_arr, COMMAND_SIZE * sizeof(char*));
+			if (command_arr_copy == NULL) {
+				printf("%s\n", "Memory allocation error!");
+				free(command_arr_copy);
+				free(command_arr);
+				return;
+			}
+
+			command_arr = command_arr_copy;
+		}
+		int argument_length = strlen(argument);
+		command_arr[argument_index] = malloc((argument_length + 1) * sizeof(char));
+		strcpy(command_arr[argument_index], argument);
+		argument_index++;
+		argument = strtok(NULL, " ");
+	}
+
+	
 }
 
 	
