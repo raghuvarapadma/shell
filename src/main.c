@@ -16,6 +16,7 @@ void run_program();
 void parse_input();
 int fetch_line();
 void parse_line(char *stdin_input);
+void exec_command(char **command_arr);
 
 int main() {
 	run_program();
@@ -113,7 +114,14 @@ void parse_line(char *stdin_input) {
 		argument = strtok(NULL, " ");
 	}
 
+	// free all the space here used by command_arr including the memory allocated by command_arr
+
 	
+}
+
+// exec logic down here
+void exec_command(char **command_arr) {
+
 }
 
 	
