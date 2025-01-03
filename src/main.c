@@ -16,7 +16,7 @@ void run_program();
 void parse_input();
 int fetch_line();
 void parse_line(char *stdin_input);
-void exec_command(char **command_arr);
+void exec_command(char* argument, char **arguments);
 
 int main() {
 	run_program();
@@ -89,39 +89,50 @@ int fetch_line() {
 
 void parse_line(char *stdin_input) {
 	int COMMAND_SIZE = 20; 
-	char **command_arr = malloc(COMMAND_SIZE * sizeof(char*));
+	char *command;
+	char **arguments = malloc(COMMAND_SIZE * sizeof(char*));
 	char *argument;
 	int argument_index = 0;
+
 	argument = strtok(stdin_input, " ");
 
 	while (argument != NULL) {
 		if (argument_index >= COMMAND_SIZE) {
 			COMMAND_SIZE = COMMAND_SIZE * 2;
-			char** command_arr_copy = realloc(command_arr, COMMAND_SIZE * sizeof(char*));
-			if (command_arr_copy == NULL) {
+			char** arguments_copy = realloc(command_arr, COMMAND_SIZE * sizeof(char*));
+			if (arguments_copy == NULL) {
 				printf("%s\n", "Memory allocation error!");
-				free(command_arr_copy);
-				free(command_arr);
+				free(arguments_copy);
+				free(arguments);
 				return;
 			}
 
-			command_arr = command_arr_copy;
+			arguments = command_arr_copy;
 		}
+
 		int argument_length = strlen(argument);
-		command_arr[argument_index] = malloc((argument_length + 1) * sizeof(char));
-		strcpy(command_arr[argument_index], argument);
-		argument_index++;
+		if (argument_index == 0) {
+			command = malloc((argument_length+1) * sizeof(char));
+			strcpy(command, argument);
+		}
+		else {
+			arguments[argument_index] = malloc((argument_length + 1) * sizeof(char));
+			strcpy(arguments[argument_index], argument);
+			argument_index++;
+		}
+
 		argument = strtok(NULL, " ");
 	}
 
-	// free all the space here used by command_arr including the memory allocated by command_arr
+	// free all the space here used by arguments including the memory allocated by command_arr
 
 	
 }
 
 // exec logic down here
-void exec_command(char **command_arr) {
-
+void exec_command(char *command, char **arguments) {
+	// need to use PATH to search through valid directories and use access() to see if directory is valid
+	// then i can do execv command with command and arguments	
 }
 
 	
