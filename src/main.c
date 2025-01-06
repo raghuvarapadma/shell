@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 // 1. need to receive input continously - for now, this will be only be able to take in a line of commands 
 // 2. take in the argument and parse it
@@ -16,7 +17,7 @@ void run_program();
 void parse_input();
 int fetch_line();
 void parse_line(char *stdin_input);
-void exec_command(char* argument, char **arguments);
+void find_path(char* argument, char **arguments);
 
 int main() {
 	run_program();
@@ -99,7 +100,7 @@ void parse_line(char *stdin_input) {
 	while (argument != NULL) {
 		if (argument_index >= COMMAND_SIZE) {
 			COMMAND_SIZE = COMMAND_SIZE * 2;
-			char** arguments_copy = realloc(command_arr, COMMAND_SIZE * sizeof(char*));
+			char** arguments_copy = realloc(arguments, COMMAND_SIZE * sizeof(char*));
 			if (arguments_copy == NULL) {
 				printf("%s\n", "Memory allocation error!");
 				free(arguments_copy);
@@ -107,7 +108,7 @@ void parse_line(char *stdin_input) {
 				return;
 			}
 
-			arguments = command_arr_copy;
+			arguments = arguments_copy;
 		}
 
 		int argument_length = strlen(argument);
@@ -124,15 +125,54 @@ void parse_line(char *stdin_input) {
 		argument = strtok(NULL, " ");
 	}
 
+	find_path(command, arguments);
+
 	// free all the space here used by arguments including the memory allocated by command_arr
 
 	
 }
 
-// exec logic down here
-void exec_command(char *command, char **arguments) {
-	// need to use PATH to search through valid directories and use access() to see if directory is valid
-	// then i can do execv command with command and arguments	
+void find_path(char *command, char **arguments) {
+	int command_len = strlen(command);
+	char *path = "PATH";
+	char *get_env = getenv(path);
+	char *path_result = malloc(strlen(get_env) * sizeof(char));
+
+	strcpy(path_result, getenv(path));
+
+	char *location;
+	int access_allowed = -1;
+	char *search_path;
+	
+	location = strtok(path_result, ":");
+
+	while (location != NULL) {
+		int location_len = strlen(location);
+		int total_len = command_len + location_len+2;
+		
+		search_path = malloc(total_len * sizeof(char));
+
+		strcat(search_path, location);
+		strcat(search_path, "/");
+		strcat(search_path, command);
+		
+		access_allowed = access(search_path, F_OK);
+		if (access_allowed == 0) {
+			break;
+		}
+		else {
+			free(search_path);
+			location = strtok(NULL, ":");
+		}
+	}
+
+	if (access_allowed == -1) {
+		printf("%s\n", "Command is invalid!");
+	} else {
+		free(search_path);
+	}
+
 }
+
 
 	
