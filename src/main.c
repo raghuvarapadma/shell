@@ -17,7 +17,8 @@ void run_program();
 void parse_input();
 int fetch_line();
 void parse_line(char *stdin_input);
-void find_path(char* argument, char **arguments);
+void find_path(char* command, char **arguments);
+void execute_command(char *command_path, char **arguments);
 
 int main() {
 	run_program();
@@ -169,9 +170,14 @@ void find_path(char *command, char **arguments) {
 	if (access_allowed == -1) {
 		printf("%s\n", "Command is invalid!");
 	} else {
+		execute_command(search_path, arguments);	
 		free(search_path);
 	}
+}
 
+void execute_command(char *command_path, char **arguments) {
+	// use execv here
+	// you need to fork() the process and once you fork() it, then we can use execv() on the forked process
 }
 
 
