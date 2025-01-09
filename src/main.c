@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 // 1. need to receive input continously - for now, this will be only be able to take in a line of commands 
 // 2. take in the argument and parse it
@@ -117,11 +118,10 @@ void parse_line(char *stdin_input) {
 			command = malloc((argument_length+1) * sizeof(char));
 			strcpy(command, argument);
 		}
-		else {
-			arguments[argument_index] = malloc((argument_length + 1) * sizeof(char));
-			strcpy(arguments[argument_index], argument);
-			argument_index++;
-		}
+		
+		arguments[argument_index] = malloc((argument_length + 1) * sizeof(char));
+		strcpy(arguments[argument_index], argument);
+		argument_index++;
 
 		argument = strtok(NULL, " ");
 	}
@@ -176,8 +176,18 @@ void find_path(char *command, char **arguments) {
 }
 
 void execute_command(char *command_path, char **arguments) {
-	// use execv here
-	// you need to fork() the process and once you fork() it, then we can use execv() on the forked process
+	pid_t process = fork();
+	if (process < 0) {
+		perror("fork has failed!");
+		exit(1);
+	}
+	
+	if (process == 0) {
+		execv(command_path, arguments);
+	} else {
+		int *stat_loc;
+		waitpid(process, stat_loc, WCONTINUED);
+	}
 }
 
 
