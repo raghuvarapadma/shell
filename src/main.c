@@ -176,17 +176,21 @@ void find_path(char *command, char **arguments) {
 }
 
 void execute_command(char *command_path, char **arguments) {
-	pid_t process = fork();
-	if (process < 0) {
+	pid_t pid = fork();
+
+	if (pid < 0) {
 		perror("fork has failed!");
 		exit(1);
-	}
-	
-	if (process == 0) {
+	} else if (pid == 0) {
 		execv(command_path, arguments);
+		exit(0);
 	} else {
-		int *stat_loc;
-		waitpid(process, stat_loc, WCONTINUED);
+		int stat_loc;
+		waitpid(pid, &stat_loc, 0);
+		
+		if (!WIFEXITED(stat_loc)) {
+			printf("%s\n", "Process has failed!");
+		}
 	}
 }
 
