@@ -3,16 +3,26 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <limits.h>
 
-// 1. need to receive input continously - for now, this will be only be able to take in a line of commands 
-// 2. take in the argument and parse it
-// 	a. need to get character by character - how do i store this in string array
-//		i. this should all be stored in one string
-//		ii. we can use malloc to dynamically store this string (remember to free it)
-//		iii. should be able to resize the malloc string if the space we reserved is too small (for now, we can use 1024) 
-// 	b. use strtok to split up string into the command and arguments  
-// 3. execute the argument using fork() and exec()
-// 4. know the difference between built-in and executable commands
+/*
+1. Read Me
+    1. Motivation Section
+    2. Features
+    3. Learnings
+    4. Compiling and running it
+2. Add a .gitignore
+3. See if I am using malloc and realloc correctly 
+    1. Find a tool and implement it
+    2. Quickly implement a malloc and realloc wrapper
+4. Implement semicolons, pipes, redirection
+5. Implement an extra feature
+    1. Implementing environment variables
+    2. Implementing some more built in commands
+6. Come up with test cases
+7. Fix the return values of each function
+8. Fix the error output
+*/
 
 void run_program();
 void parse_input();
@@ -79,10 +89,16 @@ int fetch_line() {
 			free(stdin_string);
 			count_length_string = 0;
 			return 1;
+		} else if (ch == ';') {
+			stdin_string[count_length_string] = '\0';
+			parse_line(stdin_string);
+			free(stdin_string);
+			count_length_string = 0;
+			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
+		} else {
+			stdin_string[count_length_string] = ch;
+			count_length_string++;
 		}
- 
-		stdin_string[count_length_string] = ch;	
-		count_length_string++;
 	}
 
 	free(stdin_string);
@@ -126,11 +142,43 @@ void parse_line(char *stdin_input) {
 		argument = strtok(NULL, " ");
 	}
 
-	find_path(command, arguments);
+	if (strcmp(command, "cd") == 0) {
+		if (argument_index == 1) {
+			const char *HOME = "HOME";
+			const char *home_dir = getenv(HOME);
+			int ret = chdir(home_dir);
+			if (ret != 0) {
+				printf("There was an issue changing the directory!");
+			}
+		} else if (argument_index == 2) {
+			int ret = chdir(arguments[1]);
+			if (ret != 0) {
+				printf("There was an issue changing the directory!");
+			}
+		}
+	} else if (strcmp(command, "exit") == 0) {
+		exit(0);	
+	} else if (strcmp(command, "echo") == 0) {
+		for (int i = 1; i < argument_index; i++) {
+			printf("%s ", arguments[i]);
+		}
+	} else if (strcmp(command, "pwd") == 0) {
+		char cwd[PATH_MAX];
+		if (getcwd(cwd, sizeof(cwd)) != NULL) {
+       			printf("%s", cwd);
+   		} else {
+       			printf("getcwd() error");
+   		}
+	} else {
+		find_path(command, arguments);
+	}
 
-	// free all the space here used by arguments including the memory allocated by command_arr
-
-	
+ 	free(argument);
+	free(command);
+	for (int i = 0; i < argument_index; i++) {
+		free(arguments[argument_index]);
+	}
+	free(arguments);	
 }
 
 void find_path(char *command, char **arguments) {
@@ -179,7 +227,7 @@ void execute_command(char *command_path, char **arguments) {
 	pid_t pid = fork();
 
 	if (pid < 0) {
-		perror("fork has failed!");
+		printf("fork has failed!");
 		exit(1);
 	} else if (pid == 0) {
 		execv(command_path, arguments);
