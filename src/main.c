@@ -27,9 +27,11 @@
 void run_program();
 void parse_input();
 int fetch_line();
-void parse_line(char *stdin_input);
-void find_path(char* command, char **arguments);
-void execute_command(char *command_path, char **arguments);
+void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe);
+void find_path(char* command, char **arguments, int write_end_pipe, int read_end_pipe);
+void execute_command(char *command_path, char **arguments, int write_end_pipe, int read_end_pipe);
+
+const int NO_PIPE = -1000;
 
 int main() {
 	run_program();
@@ -67,6 +69,10 @@ int fetch_line() {
 	}
 
 	printf("\n>");
+
+	int command_counter = 0;
+	int **file_descriptors = (int*)malloc(BUFFER_SIZE * sizeof(int*));
+	int PIPE_PRESENT = 0;
 	
 	while ((ch = getchar()) != EOF) {
 		if (count_length_string >= BUFFER_SIZE) {
@@ -80,21 +86,48 @@ int fetch_line() {
 			}
 			
 			stdin_string = stdin_string_copy;	
-		} 
+		}
 
 
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-			parse_line(stdin_string);
+		        if (PIPE_PRESENT) {
+				parse_line(stdin_string, NO_PIPE, file_descriptors[command_counter-1][0]);
+			} else {
+				parse_line(stdin_string, NO_PIPE, NO_PIPE);
+			}	
 			free(stdin_string);
 			count_length_string = 0;
+			PIPE_PRESENT = 0;
 			return 1;
 		} else if (ch == ';') {
 			stdin_string[count_length_string] = '\0';
-			parse_line(stdin_string);
+			if (PIPE_PRESENT) {
+				parse_line(stdin_string, NO_PIPE, file_descriptors[command_counter-1][0]);
+			} else {
+				parse_line(stdin_string, NO_PIPE, NO_PIPE);
+			}	
 			free(stdin_string);
 			count_length_string = 0;
 			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
+			command_counter++;
+			PIPE_PRESENT = 0;
+		} else if (ch == '|') {
+			file_descriptors[command_counter] = (int*)malloc(2*sizeof(int));
+			if (pipe(file_descriptors[command_counter]) == -1) {
+				err(EXIT_FAILURE, "pipe() failed");
+			}
+			stdin_string[count_length_string] = '\0';
+			if (PIPE_PRESENT) {
+				parse_line(stdin_string, file_descriptors[command_counter][1], file_descriptors[command_counter-1][0]);
+			} else {
+				parse_line(stdin_string, file_descriptors[command_counter][1], NO_PIPE);
+			}	
+			free(stdin_string);
+			count_length_string = 0;
+			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
+			PIPE_PRESENT = 1;
+			command_counter++;
 		} else {
 			stdin_string[count_length_string] = ch;
 			count_length_string++;
@@ -106,7 +139,7 @@ int fetch_line() {
 
 }
 
-void parse_line(char *stdin_input) {
+void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe) {
 	int COMMAND_SIZE = 20; 
 	char *command;
 	char **arguments = malloc(COMMAND_SIZE * sizeof(char*));
@@ -170,7 +203,7 @@ void parse_line(char *stdin_input) {
        			printf("getcwd() error");
    		}
 	} else {
-		find_path(command, arguments);
+		find_path(command, arguments, write_end_pipe, read_end_pipe);
 	}
 
  	free(argument);
@@ -181,7 +214,7 @@ void parse_line(char *stdin_input) {
 	free(arguments);	
 }
 
-void find_path(char *command, char **arguments) {
+void find_path(char *command, char **arguments, write_end_pipe, read_end_pipe) {
 	int command_len = strlen(command);
 	char *path = "PATH";
 	char *get_env = getenv(path);
@@ -218,12 +251,12 @@ void find_path(char *command, char **arguments) {
 	if (access_allowed == -1) {
 		printf("%s\n", "Command is invalid!");
 	} else {
-		execute_command(search_path, arguments);	
+		execute_command(search_path, arguments, write_end_pipe, read_end_pipe);	
 		free(search_path);
 	}
 }
 
-void execute_command(char *command_path, char **arguments) {
+void execute_command(char *command_path, char **arguments, int write_end_pipe, int read_end_pipe) {
 	pid_t pid = fork();
 
 	if (pid < 0) {
