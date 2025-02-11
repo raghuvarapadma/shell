@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <limits.h>
+#include <err.h>
 
 /*
 1. Read Me
@@ -31,7 +32,7 @@ void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe);
 void find_path(char* command, char **arguments, int write_end_pipe, int read_end_pipe);
 void execute_command(char *command_path, char **arguments, int write_end_pipe, int read_end_pipe);
 
-const int NO_PIPE = -1000;
+const int NO_PIPE = -1;
 
 int main() {
 	run_program();
@@ -71,7 +72,7 @@ int fetch_line() {
 	printf("\n>");
 
 	int command_counter = 0;
-	int **file_descriptors = (int*)malloc(BUFFER_SIZE * sizeof(int*));
+	int **file_descriptors = (int**)malloc(BUFFER_SIZE * sizeof(int*));
 	int PIPE_PRESENT = 0;
 	
 	while ((ch = getchar()) != EOF) {
@@ -112,6 +113,7 @@ int fetch_line() {
 			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
 			command_counter++;
 			PIPE_PRESENT = 0;
+			command_counter++;
 		} else if (ch == '|') {
 			file_descriptors[command_counter] = (int*)malloc(2*sizeof(int));
 			if (pipe(file_descriptors[command_counter]) == -1) {
@@ -214,7 +216,7 @@ void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe) {
 	free(arguments);	
 }
 
-void find_path(char *command, char **arguments, write_end_pipe, read_end_pipe) {
+void find_path(char *command, char **arguments, int write_end_pipe, int read_end_pipe) {
 	int command_len = strlen(command);
 	char *path = "PATH";
 	char *get_env = getenv(path);
@@ -263,7 +265,37 @@ void execute_command(char *command_path, char **arguments, int write_end_pipe, i
 		printf("fork has failed!");
 		exit(1);
 	} else if (pid == 0) {
+		int dup2_write_end;
+		int dup2_read_end;
+
+		if (write_end_pipe != NO_PIPE) {
+			dup2_write_end = dup2(write_end_pipe, STDIN_FILENO);
+			if (dup2_write_end == -1) {
+				err(EXIT_FAILURE, "dup2() command failed for redirection to STDIN_FILENO");
+			}
+		}
+
+		if (read_end_pipe != NO_PIPE) {
+			dup2_read_end = dup2(read_end_pipe, STDOUT_FILENO);
+			if (dup2_read_end == -1) {
+				err(EXIT_FAILURE, "dup2() command failed redirection to STDOUT_FILENO");
+			}
+		}
+
 		execv(command_path, arguments);
+
+		if (write_end_pipe != NO_PIPE && dup2_write_end != -1) {
+			if (close(dup2_write_end) == -1) {
+				err(EXIT_FAILURE, "close() command failed for write end");
+			}
+		} 
+
+		if (read_end_pipe != NO_PIPE && dup2_read_end != -1) {
+			if (close(dup2_read_end) == -1) {
+				err(EXIT_FAILURE, "close() command failed for read end");
+			}
+		}
+
 		exit(0);
 	} else {
 		int stat_loc;
