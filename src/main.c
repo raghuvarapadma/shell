@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <err.h>
+#include <fcntl.h>
 
 /*
 1. Read Me
@@ -28,11 +29,9 @@
 void run_program();
 void parse_input();
 int fetch_line();
-void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe);
-void find_path(char* command, char **arguments, int write_end_pipe, int read_end_pipe);
-void execute_command(char *command_path, char **arguments, int write_end_pipe, int read_end_pipe);
-
-const int NO_PIPE = -1;
+void parse_line(char *stdin_input, int* write_end_pipe, int* read_end_pipe);
+void find_path(char* command, char **arguments, int* write_end_pipe, int* read_end_pipe);
+void execute_command(char *command_path, char **arguments, int* write_end_pipe, int* read_end_pipe);
 
 int main() {
 	run_program();
@@ -73,7 +72,6 @@ int fetch_line() {
 
 	int command_counter = 0;
 	int **file_descriptors = (int**)malloc(BUFFER_SIZE * sizeof(int*));
-	int PIPE_PRESENT = 0;
 	
 	while ((ch = getchar()) != EOF) {
 		if (count_length_string >= BUFFER_SIZE) {
@@ -92,27 +90,26 @@ int fetch_line() {
 
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-		        if (PIPE_PRESENT) {
-				parse_line(stdin_string, NO_PIPE, file_descriptors[command_counter-1][0]);
+		        if (file_descriptors[command_counter-1]) {
+				printf("%s\n", "second command now executing");
+				parse_line(stdin_string, NULL, file_descriptors[command_counter-1]);
 			} else {
-				parse_line(stdin_string, NO_PIPE, NO_PIPE);
+				parse_line(stdin_string, NULL, NULL);
 			}	
 			free(stdin_string);
 			count_length_string = 0;
-			PIPE_PRESENT = 0;
 			return 1;
 		} else if (ch == ';') {
 			stdin_string[count_length_string] = '\0';
-			if (PIPE_PRESENT) {
-				parse_line(stdin_string, NO_PIPE, file_descriptors[command_counter-1][0]);
+			if (file_descriptors[command_counter-1]) {
+				parse_line(stdin_string, NULL, file_descriptors[command_counter-1]);
 			} else {
-				parse_line(stdin_string, NO_PIPE, NO_PIPE);
+				parse_line(stdin_string, NULL, NULL);
 			}	
 			free(stdin_string);
 			count_length_string = 0;
 			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
 			command_counter++;
-			PIPE_PRESENT = 0;
 			command_counter++;
 		} else if (ch == '|') {
 			file_descriptors[command_counter] = (int*)malloc(2*sizeof(int));
@@ -120,15 +117,15 @@ int fetch_line() {
 				err(EXIT_FAILURE, "pipe() failed");
 			}
 			stdin_string[count_length_string] = '\0';
-			if (PIPE_PRESENT) {
-				parse_line(stdin_string, file_descriptors[command_counter][1], file_descriptors[command_counter-1][0]);
+			if (file_descriptors[command_counter-1]) {
+				parse_line(stdin_string, file_descriptors[command_counter], file_descriptors[command_counter-1]);
 			} else {
-				parse_line(stdin_string, file_descriptors[command_counter][1], NO_PIPE);
+				printf("%s\n", "first command now executing");
+				parse_line(stdin_string, file_descriptors[command_counter], NULL);
 			}	
 			free(stdin_string);
 			count_length_string = 0;
 			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
-			PIPE_PRESENT = 1;
 			command_counter++;
 		} else {
 			stdin_string[count_length_string] = ch;
@@ -141,7 +138,7 @@ int fetch_line() {
 
 }
 
-void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe) {
+void parse_line(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 	int COMMAND_SIZE = 20; 
 	char *command;
 	char **arguments = malloc(COMMAND_SIZE * sizeof(char*));
@@ -216,7 +213,7 @@ void parse_line(char *stdin_input, int write_end_pipe, int read_end_pipe) {
 	free(arguments);	
 }
 
-void find_path(char *command, char **arguments, int write_end_pipe, int read_end_pipe) {
+void find_path(char *command, char **arguments, int* write_end_pipe, int* read_end_pipe) {
 	int command_len = strlen(command);
 	char *path = "PATH";
 	char *get_env = getenv(path);
@@ -258,46 +255,57 @@ void find_path(char *command, char **arguments, int write_end_pipe, int read_end
 	}
 }
 
-void execute_command(char *command_path, char **arguments, int write_end_pipe, int read_end_pipe) {
+void execute_command(char *command_path, char **arguments, int* write_end_pipe, int* read_end_pipe) {
 	pid_t pid = fork();
 
 	if (pid < 0) {
 		printf("fork has failed!");
 		exit(1);
 	} else if (pid == 0) {
+
 		int dup2_write_end;
 		int dup2_read_end;
 
-		if (write_end_pipe != NO_PIPE) {
-			dup2_write_end = dup2(write_end_pipe, STDIN_FILENO);
+		if (write_end_pipe != NULL) {
+			if (write_end_pipe[0] > 0 && close(write_end_pipe[0])) {
+				err(EXIT_FAILURE, "close() not working on read end of write_end_pipe");
+			}
+			dup2_write_end = dup2(write_end_pipe[1], STDOUT_FILENO);
+			printf("%s", "after dup2");
 			if (dup2_write_end == -1) {
 				err(EXIT_FAILURE, "dup2() command failed for redirection to STDIN_FILENO");
 			}
+                        if (write_end_pipe[1] > 0 && close(write_end_pipe[1]) == -1) {
+                                err(EXIT_FAILURE, "close() command failed for write end");
+                        }
+
 		}
 
-		if (read_end_pipe != NO_PIPE) {
-			dup2_read_end = dup2(read_end_pipe, STDOUT_FILENO);
+		if (read_end_pipe != NULL) {
+			if ( fcntl(read_end_pipe[1], F_GETFD) != -1 && close(read_end_pipe[1])) {
+				err(EXIT_FAILURE, "close() not working on write end of read_end_pipe");
+			}
+			dup2_read_end = dup2(read_end_pipe[0], STDIN_FILENO);
 			if (dup2_read_end == -1) {
 				err(EXIT_FAILURE, "dup2() command failed redirection to STDOUT_FILENO");
 			}
+			if (read_end_pipe[0] > 0 && close(read_end_pipe[0]) == -1) {
+                                err(EXIT_FAILURE, "close() command failed for read end");
+                        }
+
 		}
 
 		execv(command_path, arguments);
 
-		if (write_end_pipe != NO_PIPE && dup2_write_end != -1) {
-			if (close(dup2_write_end) == -1) {
-				err(EXIT_FAILURE, "close() command failed for write end");
-			}
-		} 
-
-		if (read_end_pipe != NO_PIPE && dup2_read_end != -1) {
-			if (close(dup2_read_end) == -1) {
-				err(EXIT_FAILURE, "close() command failed for read end");
-			}
-		}
-
 		exit(0);
 	} else {
+		if (write_end_pipe != NULL && write_end_pipe[1] > 0) {
+	            close(write_end_pipe[1]); // Close write end in parent
+        	}
+        	if (read_end_pipe != NULL && read_end_pipe[0] > 0) {
+            	    close(read_end_pipe[0]); // Close read end in parent
+       	 	}
+
 		int stat_loc;
 		waitpid(pid, &stat_loc, 0);
 		
