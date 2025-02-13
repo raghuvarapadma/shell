@@ -7,31 +7,13 @@
 #include <err.h>
 #include <fcntl.h>
 
-/*
-1. Read Me
-    1. Motivation Section
-    2. Features
-    3. Learnings
-    4. Compiling and running it
-2. Add a .gitignore
-3. See if I am using malloc and realloc correctly 
-    1. Find a tool and implement it
-    2. Quickly implement a malloc and realloc wrapper
-4. Implement semicolons, pipes, redirection
-5. Implement an extra feature
-    1. Implementing environment variables
-    2. Implementing some more built in commands
-6. Come up with test cases
-7. Fix the return values of each function
-8. Fix the error output
-*/
-
 void run_program();
 void parse_input();
 int fetch_line();
 void parse_line(char *stdin_input, int* write_end_pipe, int* read_end_pipe);
 void find_path(char* command, char **arguments, int* write_end_pipe, int* read_end_pipe);
 void execute_command(char *command_path, char **arguments, int* write_end_pipe, int* read_end_pipe);
+void free_memory(char* stdin_string, int** file_descriptors, int command_counter);
 
 int main() {
 	run_program();
@@ -55,33 +37,50 @@ void parse_input() {
 
 }
 
+void free_memory(char* stdin_string, int** file_descriptors, int command_counter) {
+	if (stdin_string != NULL) {
+		free(stdin_string);
+	}
+
+	if (file_descriptors != NULL) {
+		for (int i = 0; i < command_counter; i++) {
+			if (file_descriptors[i] != NULL) {
+				free(file_descriptors[i]);
+			}
+		}
+		free(file_descriptors);
+	}
+}
+
 int fetch_line() {
 
 	int BUFFER_SIZE = 1024;
+
 	int ch;
-	char *stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
+	int command_counter = 0;
 	int count_length_string = 0;
 
+	char *stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
 	if (stdin_string == NULL) {
-		printf("%s\n", "Memory allocation error, please restart the program!");
-		free(stdin_string);
-		return 0;
+		err(EXIT_FAILURE, "malloc() error when allocating stdin_string");
 	}
 
-	printf("\n>");
 
-	int command_counter = 0;
 	int **file_descriptors = (int**)malloc(BUFFER_SIZE * sizeof(int*));
+	if (file_descriptors == NULL) {
+		free(stdin_string);
+		err(EXIT_FAILURE, "malloc() error when allocating file_descriptors");
+	}
+	
+	printf("\n> ");
 	
 	while ((ch = getchar()) != EOF) {
 		if (count_length_string >= BUFFER_SIZE) {
 			BUFFER_SIZE = BUFFER_SIZE * 2;
 			char *stdin_string_copy = (char*) realloc(stdin_string, BUFFER_SIZE * sizeof( char ) );
 			if (stdin_string_copy == NULL) {
-				printf("%s\n", "Memory allocation error, please restart the program!");
-				free(stdin_string_copy);
-				free(stdin_string);
-				return 0;
+				free_memory(stdin_string, file_descriptors, command_counter);
+				err(EXIT_FAILURE, "realloc() error when reallocating stding_string");
 			}
 			
 			stdin_string = stdin_string_copy;	
@@ -90,52 +89,49 @@ int fetch_line() {
 
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-		        if (file_descriptors[command_counter-1]) {
-				printf("%s\n", "second command now executing");
+		    if (command_counter > 0 && file_descriptors[command_counter-1]) {
 				parse_line(stdin_string, NULL, file_descriptors[command_counter-1]);
 			} else {
 				parse_line(stdin_string, NULL, NULL);
 			}	
-			free(stdin_string);
-			count_length_string = 0;
+			free_memory(stdin_string, file_descriptors, command_counter);
 			return 1;
 		} else if (ch == ';') {
 			stdin_string[count_length_string] = '\0';
-			if (file_descriptors[command_counter-1]) {
+			if (command_counter > 0 && file_descriptors[command_counter-1]) {
 				parse_line(stdin_string, NULL, file_descriptors[command_counter-1]);
 			} else {
 				parse_line(stdin_string, NULL, NULL);
 			}	
-			free(stdin_string);
 			count_length_string = 0;
-			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
-			command_counter++;
 			command_counter++;
 		} else if (ch == '|') {
 			file_descriptors[command_counter] = (int*)malloc(2*sizeof(int));
+			if (file_descriptors[command_counter] == NULL) {
+				free_memory(stdin_string, file_descriptors, command_counter);
+				err(EXIT_FAILURE, "malloc() failed when allocating file_descriptors[command_counter]");
+			}
 			if (pipe(file_descriptors[command_counter]) == -1) {
+				free_memory(stdin_string, file_descriptors, command_counter);
 				err(EXIT_FAILURE, "pipe() failed");
 			}
 			stdin_string[count_length_string] = '\0';
-			if (file_descriptors[command_counter-1]) {
+			if (command_counter > 0 && file_descriptors[command_counter-1]) {
 				parse_line(stdin_string, file_descriptors[command_counter], file_descriptors[command_counter-1]);
 			} else {
-				printf("%s\n", "first command now executing");
 				parse_line(stdin_string, file_descriptors[command_counter], NULL);
 			}	
-			free(stdin_string);
 			count_length_string = 0;
-			stdin_string = ( char* )malloc( BUFFER_SIZE * sizeof( char ) );
 			command_counter++;
 		} else {
 			stdin_string[count_length_string] = ch;
 			count_length_string++;
 		}
 	}
-
-	free(stdin_string);
+	
+	free_memory(stdin_string, file_descriptors, command_counter);
+	printf("\n");
 	return 0;
-
 }
 
 void parse_line(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
