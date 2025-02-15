@@ -148,7 +148,7 @@ int fetch_line() {
 				int parse_command_result = parse_command(stdin_string, NULL, file_descriptors[command_counter-1]);
 				if (parse_command_result == 0) {
 					free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-                    err(EXIT_FAILURE, "parse_command() failed");
+                    			err(EXIT_FAILURE, "parse_command() failed");
 				} else if (parse_command_result == 2) {
 					free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
 					return 0;
