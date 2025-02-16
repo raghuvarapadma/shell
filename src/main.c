@@ -30,8 +30,8 @@ void run_program() {
 }
 
 void parse_input() {
-	int status = 1;
-	while (status) {
+	int status = 0;
+	while (status == 0) {
 		status = fetch_line();
 	}
 }
@@ -48,7 +48,7 @@ int fetch_line() {
 	if (stdin_string == NULL) {
 		fprintf(stderr, "malloc() error with stdin_string\n");
 		free_memory_fetch_line(NULL, NULL, command_counter);
-		return 1;
+		return 0;
 	}
 
 
@@ -56,7 +56,7 @@ int fetch_line() {
 	if (file_descriptors == NULL) {
 		fprintf(stderr, "malloc() error with file_descriptors\n");
 		free_memory_fetch_line(stdin_string, NULL, command_counter);
-		return 1;
+		return 0;
 	}
 
 	printf("\n> ");
@@ -68,7 +68,7 @@ int fetch_line() {
 			if (stdin_string_copy == NULL) {
 				fprintf(stderr, "realloc() error with stdin_string");
 				free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-				return 1;
+				return 0;
 			}
 
 			stdin_string = stdin_string_copy;	
@@ -77,15 +77,15 @@ int fetch_line() {
 
 		if (ch == '\n') {
 			stdin_string[count_length_string] = '\0';
-			if (call_parse_command('\n', stdin_string, file_descriptors, command_counter) == 0) {
-				return 1;
+			if (call_parse_command('\n', stdin_string, file_descriptors, command_counter) == 1) {
+				return 0;
 			}
 			free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-			return 1;
+			return 0;
 		} else if (ch == ';') {
 			stdin_string[count_length_string] = '\0';
-			if (call_parse_command(';', stdin_string, file_descriptors, command_counter) == 0) {
-				return 1;
+			if (call_parse_command(';', stdin_string, file_descriptors, command_counter) == 1) {
+				return 0;
 			}
 			count_length_string = 0;
 			command_counter++;
@@ -94,16 +94,16 @@ int fetch_line() {
 			if (file_descriptors[command_counter] == NULL) {
 				fprintf(stderr, "malloc() error with file_descriptors[command_counter]\n");
 				free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-				return 1;
+				return 0;
 			}
 			if (pipe(file_descriptors[command_counter]) == -1) {
 				fprintf(stderr, "pipe() failed");
 				free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-				return 1;
+				return 0;
 			}
 			stdin_string[count_length_string] = '\0';
-			if (call_parse_command('|', stdin_string, file_descriptors, command_counter) == 0) {
-				return 1;
+			if (call_parse_command('|', stdin_string, file_descriptors, command_counter) == 1) {
+				return 0;
 			}
 			count_length_string = 0;
 			command_counter++;
@@ -114,7 +114,7 @@ int fetch_line() {
 	}
 
 	free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-	return 0;
+	return 1;
 }
 
 int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
@@ -127,7 +127,7 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 	if (arguments == NULL) {
 		fprintf(stderr, "malloc() error with arguments\n");
 		free_memory_parse_command(arguments, argument_index, argument, command);
-		return 0;
+		return 1;
 	}
 
 	argument = strtok(stdin_input, " ");
@@ -139,7 +139,7 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 			if (arguments_copy == NULL) {
 				fprintf(stderr, "realloc() error with arguments\n");
 				free_memory_parse_command(arguments, argument_index, argument, command);
-				return 0;
+				return 1;
 			}
 
 			arguments = arguments_copy;
@@ -150,7 +150,7 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 		if (arguments[argument_index] == NULL) {
 			fprintf(stderr, "malloc() error with arguments[argument_index]");
 			free_memory_parse_command(arguments, argument_index, argument, command);
-			return 0;
+			return 1;
 		}
 		strcpy(arguments[argument_index], argument);
 
@@ -166,16 +166,16 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 		if (write_end_pipe != NULL || read_end_pipe != NULL) {
 			free_memory_parse_command(arguments, argument_index, argument, command);
 			if (write_end_pipe != NULL) {
-				if (close_pipe_end(write_end_pipe[1]) == 0) {
-					return 0;
+				if (close_pipe_end(write_end_pipe[1]) == 1) {
+					return 1;
 				}
 			}
 			if (read_end_pipe != NULL) {
-				if (close_pipe_end(read_end_pipe[0]) == 0) {
-					return 0;
+				if (close_pipe_end(read_end_pipe[0]) == 1) {
+					return 1;
 				}
 			}
-			return 1;
+			return 0;
 		}
 
 		int ret;
@@ -191,33 +191,33 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 		if (ret != 0) {
 			fprintf(stderr, "There was an issue changing the directory\n");
 			free_memory_parse_command(arguments, argument_index, argument, command);
-			return 0;
+			return 1;
 		}
 
 		free_memory_parse_command(arguments, argument_index, argument, command);
-		return 1;
+		return 0;
 	} else if (strcmp(command, "exit") == 0) {
 		free_memory_parse_command(arguments, argument_index, argument, command);
 
 		if (write_end_pipe != NULL || read_end_pipe != NULL) {
 			if (write_end_pipe != NULL) {
-				if (close_pipe_end(write_end_pipe[1]) == 0) {
-					return 0;
+				if (close_pipe_end(write_end_pipe[1]) == 1) {
+					return 1;
 				}
 			}
 			if (read_end_pipe != NULL) {
-				if (close_pipe_end(read_end_pipe[0]) == 0) {
-					return 0;
+				if (close_pipe_end(read_end_pipe[0]) == 1) {
+					return 1;
 				}
 			}
-			return 1;
+			return 0;
 		}
 
 		return 2;
 	} else if (strcmp(command, "echo") == 0) {
 		if (read_end_pipe != NULL) {
-			if (close_pipe_end(read_end_pipe[0]) == 0) {
-				return 0;
+			if (close_pipe_end(read_end_pipe[0]) == 1) {
+				return 1;
 			}
 		}
 
@@ -226,7 +226,7 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 				strcat(arguments[i], " ");
 				if (write(write_end_pipe[1], arguments[i], strlen(arguments[i])) == -1) {
 					free_memory_parse_command(arguments, argument_index, argument, command);
-					return 0;
+					return 1;
 				}
 			}
 		} else {
@@ -236,17 +236,17 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 		}
 
 		if (write_end_pipe != NULL) {
-			if (close_pipe_end(write_end_pipe[1]) == 0) {
-				return 0;
+			if (close_pipe_end(write_end_pipe[1]) == 1) {
+				return 1;
 			}
 		}
 
 		free_memory_parse_command(arguments, argument_index, argument, command);
-		return 1;
+		return 0;
 	} else if (strcmp(command, "pwd") == 0) {
 		if (read_end_pipe != NULL) {
-			if (close_pipe_end(read_end_pipe[0]) == 0) {
-				return 0;
+			if (close_pipe_end(read_end_pipe[0]) == 1) {
+				return 1;
 			}
 		}
 
@@ -255,7 +255,7 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 			if (write_end_pipe != NULL) {
 				if (write(write_end_pipe[1], cwd, strlen(cwd)) == -1) {
 					free_memory_parse_command(arguments, argument_index, argument, command);
-					return 0;
+					return 1;
 				}
 			} else {
 				printf("%s", cwd);
@@ -263,25 +263,25 @@ int parse_command(char *stdin_input, int* write_end_pipe, int* read_end_pipe) {
 		} else {
 			fprintf(stderr, "getcwd() error\n");
 			free_memory_parse_command(arguments, argument_index, argument, command);
-			return 0;
+			return 1;
 		}
 
 		if (write_end_pipe != NULL) {
-			if (close_pipe_end(write_end_pipe[1]) == 0) {
-				return 0;
+			if (close_pipe_end(write_end_pipe[1]) == 1) {
+				return 1;
 			}
 		}
 
 		free_memory_parse_command(arguments, argument_index, argument, command);
-		return 1;
+		return 0;
 	} else {
 		int find_path_result = find_path(command, arguments, write_end_pipe, read_end_pipe);
 		free_memory_parse_command(arguments, argument_index, argument, command);
-		if (find_path_result == 0) {
+		if (find_path_result == 1) {
 			fprintf(stderr, "Call to find_path() failed\n");
-			return 0;	
+			return 1;	
 		} 
-		return 1;
+		return 0;
 	}
 }
 
@@ -294,7 +294,7 @@ int find_path(char *command, char **arguments, int* write_end_pipe, int* read_en
 	if (path_result == NULL) {
 		fprintf(stderr, "malloc() error with path_result\n");
 		free_memory_find_path(path_result, NULL);
-		return 0;
+		return 1;
 	}
 
 	strcpy(path_result, getenv(path));
@@ -313,7 +313,7 @@ int find_path(char *command, char **arguments, int* write_end_pipe, int* read_en
 		if (search_path == NULL) {
 			fprintf(stderr, "malloc() error with search_path\n");
 			free_memory_find_path(path_result, search_path);
-			return 0;
+			return 1;
 		}
 
 		strcat(search_path, location);
@@ -334,15 +334,15 @@ int find_path(char *command, char **arguments, int* write_end_pipe, int* read_en
 	if (access_allowed == -1) {
 		fprintf(stderr, "Could not find path for command\n");
 		free_memory_find_path(path_result, search_path);
-		return 1;
+		return 0;
 	} else {
 		int execute_command_result = execute_command(search_path, arguments, write_end_pipe, read_end_pipe);	
 		free_memory_find_path(path_result, search_path);
-		if (execute_command_result == 0) {
+		if (execute_command_result == 1) {
 			fprintf(stderr, "execute_command() call failed\n");
-			return 0;
+			return 1;
 		}
-		return 1;
+		return 0;
 	}
 }
 
@@ -351,7 +351,7 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 
 	if (pid < 0) {
 		fprintf(stderr, "fork() error\n");
-		return 0;	
+		return 1;	
 	} else if (pid == 0) {
 
 		int dup2_write_end;
@@ -359,7 +359,7 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 
 
 		if (write_end_pipe != NULL) {
-			if (close_pipe_end(write_end_pipe[0]) == 0) {
+			if (close_pipe_end(write_end_pipe[0]) == 1) {
 				err(98, "close() error");
 			}
 
@@ -368,13 +368,13 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 				err(EXIT_FAILURE, "dup2() command failed for redirection to STDIN_FILENO");
 			}
 
-			if (close_pipe_end(write_end_pipe[1]) == 0) {
+			if (close_pipe_end(write_end_pipe[1]) == 1) {
 				err(98, "close() error");
 			}
 		}
 
 		if (read_end_pipe != NULL) {
-			if (close_pipe_end(read_end_pipe[1]) == 0) {
+			if (close_pipe_end(read_end_pipe[1]) == 1) {
 				err(98, "close() error");
 			}
 
@@ -383,7 +383,7 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 				err(EXIT_FAILURE, "dup2() command failed redirection to STDOUT_FILENO");
 			}
 
-			if (close_pipe_end(read_end_pipe[0]) == 0) {
+			if (close_pipe_end(read_end_pipe[0]) == 1) {
 				err(98, "close() error");
 			}
 		}
@@ -393,15 +393,15 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 		err(99, "execv() failed in child process");
 	} else {
 		if (write_end_pipe != NULL) {
-			if (close_pipe_end(write_end_pipe[1]) == 0) {
+			if (close_pipe_end(write_end_pipe[1]) == 1) {
 				fprintf(stderr, "close() error in parent with write_end_pipe\n");
-				return 0;
+				return 1;
 			}
 		}
 		if (read_end_pipe != NULL) {
-			if (close_pipe_end(read_end_pipe[0]) == 0) {
+			if (close_pipe_end(read_end_pipe[0]) == 1) {
 				fprintf(stderr, "close() error in parent with read_end_pipe\n");
-				return 0;
+				return 1;
 			}
 		}
 
@@ -412,12 +412,12 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 			int exit_status = WEXITSTATUS(stat_loc);
 			if (exit_status == 98 || exit_status == 99 ) {
 				fprintf(stderr, "Child process exited with error\n");
-				return 0;
+				return 1;
 			}
-			return 1;
+			return 0;
 		} else {
 			fprintf(stderr, "Child process did not exit correctly\n");
-			return 0;
+			return 1;
 		}
 	}
 }
@@ -463,15 +463,15 @@ int close_pipe_end(int fd) {
 	if (fcntl(fd, F_GETFD) == -1) {
 		if (errno != EBADF) {
 			fprintf(stderr, "fcntl() command failed\n");
-			return 0;
+			return 1;
 		}
 	} else {
 		if (close(fd) == -1) {
 			fprintf(stderr, "close() command failed\n");
-			return 0; 
+			return 1; 
 		}
 	}
-	return 1;
+	return 0;
 }
 
 int call_parse_command(char seperator, char* stdin_string, int** file_descriptors, int command_counter) {
@@ -491,16 +491,16 @@ int call_parse_command(char seperator, char* stdin_string, int** file_descriptor
 		}
 	} 
 
-	if (parse_command_result == 0) {
+	if (parse_command_result == 1) {
 		fprintf(stderr, "parse_command() failed\n");
 		free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-		return 0;
+		return 1;
 	} else if ( (seperator == '\n' || seperator == ';') && parse_command_result == 2) {
 		printf("%s", "Goodbye!\n");
 		free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
 		exit(0);
 	}
 
-	return 1;
+	return 0;
 }
 
