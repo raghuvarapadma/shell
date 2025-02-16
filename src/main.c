@@ -350,44 +350,59 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 	pid_t pid = fork();
 
 	if (pid < 0) {
-		fprintf(stderr, "fork() has failed\n");
+		fprintf(stderr, "fork() error\n");
 		return 0;	
 	} else if (pid == 0) {
 
 		int dup2_write_end;
 		int dup2_read_end;
 
+
 		if (write_end_pipe != NULL) {
-			close_pipe_end(write_end_pipe[0]);
+			if (close_pipe_end(write_end_pipe[0]) == 0) {
+				err(98, "close() error");
+			}
 
 			dup2_write_end = dup2(write_end_pipe[1], STDOUT_FILENO);
 			if (dup2_write_end == -1) {
 				err(EXIT_FAILURE, "dup2() command failed for redirection to STDIN_FILENO");
 			}
 
-			close_pipe_end(write_end_pipe[1]);
+			if (close_pipe_end(write_end_pipe[1]) == 0) {
+				err(98, "close() error");
+			}
 		}
 
 		if (read_end_pipe != NULL) {
-			close_pipe_end(read_end_pipe[1]);
+			if (close_pipe_end(read_end_pipe[1]) == 0) {
+				err(98, "close() error");
+			}
 
 			dup2_read_end = dup2(read_end_pipe[0], STDIN_FILENO);
 			if (dup2_read_end == -1) {
 				err(EXIT_FAILURE, "dup2() command failed redirection to STDOUT_FILENO");
 			}
 
-			close_pipe_end(read_end_pipe[0]);
+			if (close_pipe_end(read_end_pipe[0]) == 0) {
+				err(98, "close() error");
+			}
 		}
-
+		
 		execv(command_path, arguments);
 
-		err(EXIT_FAILURE, "execv() failed in child process");
+		err(99, "execv() failed in child process");
 	} else {
 		if (write_end_pipe != NULL) {
-			close_pipe_end(write_end_pipe[1]); 
+			if (close_pipe_end(write_end_pipe[1]) == 0) {
+				fprintf(stderr, "close() error in parent with write_end_pipe\n");
+				return 0;
+			}
 		}
 		if (read_end_pipe != NULL) {
-			close_pipe_end(read_end_pipe[0]);
+			if (close_pipe_end(read_end_pipe[0]) == 0) {
+				fprintf(stderr, "close() error in parent with read_end_pipe\n");
+				return 0;
+			}
 		}
 
 		int stat_loc;
@@ -395,7 +410,7 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 
 		if (WIFEXITED(stat_loc)) {
 			int exit_status = WEXITSTATUS(stat_loc);
-			if (exit_status != 0) {
+			if (exit_status == 98 || exit_status == 99 ) {
 				fprintf(stderr, "Child process exited with error\n");
 				return 0;
 			}
@@ -464,15 +479,15 @@ int call_parse_command(char seperator, char* stdin_string, int** file_descriptor
 
 	if (seperator == ';' || seperator == '\n') {
 		if (command_counter > 0 && file_descriptors[command_counter-1]) {
-			int parse_command_result = parse_command(stdin_string, NULL, file_descriptors[command_counter-1]);
+			parse_command_result = parse_command(stdin_string, NULL, file_descriptors[command_counter-1]);
 		} else {
-			int parse_command_result = parse_command(stdin_string, NULL, NULL);
+			parse_command_result = parse_command(stdin_string, NULL, NULL);
 		}
 	} else if (seperator == '|') {
 		if (command_counter > 0 && file_descriptors[command_counter-1]) {
 			parse_command_result = parse_command(stdin_string, file_descriptors[command_counter], file_descriptors[command_counter-1]);
 		} else {
-			 parse_command_result = parse_command(stdin_string, file_descriptors[command_counter], NULL);
+			parse_command_result = parse_command(stdin_string, file_descriptors[command_counter], NULL);
 		}
 	} 
 
