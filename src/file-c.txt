@@ -1,5 +1,0 @@
-file-c.txt
-file.txt
-main
-main.c
-main.exe
