@@ -81,22 +81,33 @@ int fetch_line() {
 		}
 
 		if (redirection == 1) {
-			if (ch == '>') {
-				fprintf(stderr, "This shell doesn't support chained redirection right now!");
-				free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
+			while(ch == ' ') {
+				ch = getchar();
+			}
+
+			while (ch != '\n' && ch != ';' && ch != '|' && ch != ' ') {
+				stdin_string[count_length_string] = ch;
+				count_length_string++;
+				ch = getchar();
+			}
+			stdin_string[count_length_string] = '\0';
+
+			int handle_redirection_result = handle_redirection(stdin_string_redirection, stdin_string, file_descriptors, command_counter, command_counter_redirection);
+			if (handle_redirection_result == 1) {
 				return 0;
-			} else if (ch == '\n' || ch == ';' || ch == '|') {
-				stdin_string[count_length_string] = '\0';
-				int handle_redirection_result = handle_redirection(stdin_string_redirection, stdin_string, file_descriptors, command_counter, command_counter_redirection);
-				if (handle_redirection_result == 1) {
-					fprintf(stderr, "handle_redirection_result() failed");
-					free_memory_fetch_line(stdin_string, file_descriptors, command_counter);
-					return 0;
-				}
-				// TODO: Handle memory for stdin_string_redirection.
-				// What to do after running redirection in the cases above? Do
-				// I just let everything run as usually? Clear memory. Need to
-				// handle piping seperately.
+			} else {
+				free(stdin_string_redirection);
+				stdin_string_redirection = NULL;
+			}
+
+			while (ch == ' ') {
+				ch = getchar();
+			}
+
+			if (ch != '\n' && ch != ';' && ch != '|') {
+				redirection = 0;
+				count_length_string = 0;
+				command_counter++;
 			}
 		}
 
@@ -501,15 +512,18 @@ int execute_command(char *command_path, char **arguments, int* write_end_pipe, i
 void free_memory_fetch_line(char* stdin_string, int** file_descriptors, int command_counter) {
 	if (stdin_string != NULL) {
 		free(stdin_string);
+		stdin_string = NULL;
 	}
 
 	if (file_descriptors != NULL) {
 		for (int i = 0; i < command_counter; i++) {
 			if (file_descriptors[i] != NULL) {
 				free(file_descriptors[i]);
+				file_descriptors[i] = NULL;
 			}
 		}
 		free(file_descriptors);
+		file_descriptors = NULL;
 	}
 }
 
@@ -518,9 +532,11 @@ void free_memory_parse_command(char** arguments, int arguments_length, char* arg
 		for (int i = 0; i < arguments_length; i++) {
 			if (arguments[i] != NULL) {
 				free(arguments[i]);
+				arguments[i] = NULL;
 			}
 		}
 		free(arguments);	
+		arguments = NULL;
 	}
 	argument = NULL;
 	command = NULL;
@@ -529,9 +545,11 @@ void free_memory_parse_command(char** arguments, int arguments_length, char* arg
 void free_memory_find_path(char* path_result, char* search_path) {
 	if (path_result != NULL) {
 		free(path_result);
+		path_result = NULL;
 	}
 	if (search_path != NULL) {
 		free(search_path);
+		search_path = NULL;
 	}
 }
 
@@ -581,10 +599,6 @@ int call_parse_command(char seperator, char* stdin_string, int** file_descriptor
 }
 
 int handle_redirection(char* stdin_string_command, char* stdin_string_file, int** file_descriptors, int command_counter, int command_counter_redirection) {
-	// Pass in the stdin_string_command, with NULL to the pipes, and
-	// stdin_string_file to parse_command
-	// Modify parse_command, find_path, and execute (using dup2)
-
 	char *end = stdin_string_file + strlen(stdin_string_file)-1;
 	while (end > stdin_string_file && isspace((char)*end)) {
 		end--;
@@ -594,7 +608,7 @@ int handle_redirection(char* stdin_string_command, char* stdin_string_file, int*
 	while (isspace((char)*stdin_string_file)) {
 		stdin_string_file++;
 	}
-
+	
 	int fd;
 
 	fd = open(stdin_string_file, O_WRONLY | O_CREAT | O_TRUNC, 0755);
@@ -606,8 +620,16 @@ int handle_redirection(char* stdin_string_command, char* stdin_string_file, int*
 	if (parse_command_result == 1) {
 		fprintf(stderr, "parse_command() failed\n");
 		free_memory_fetch_line(stdin_string_command, file_descriptors, command_counter);
+		free(stdin_string_file);
+		stdin_string_file = NULL;
 		return 1;
-	}
+	} else if (parse_command_result == 2) {
+		printf("%s", "Goodbye!\n");
+		free_memory_fetch_line(stdin_string_command, file_descriptors, command_counter);
+		free(stdin_string_file);
+		stdin_string_file = NULL;
+		exit(0);
+	}	
 
 	close(fd);
 	return 0;	
